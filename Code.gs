@@ -1,6 +1,7 @@
-const ID_PLANILHA = '1XUtI9TSMJmTpbtfLjZbJ-uarRN94lu_Aqpsc46Lxmt4';
-const ABA_CAMINHADAS = 'BASE DE DADOS CAMINHADAS';
-const ABA_NOTIFICA = 'NOTIFICA - BASE';
+const ID_PLANILHA_COSEP = '14F4toc8pKb6DP-YVWpOyHgj2gahlryWe9XhcG9rUF6U';
+const ID_PLANILHA_NOTIFICA = '1gwZvu9HHaUz3Mn4ISpPbEdrMirVwdJmIFwe4YvW5_b8';
+const ABAS_CAMINHADAS = ['1_IDENT', '2_COM', '3_MED', '4_CIR_SEG', '5_HIG', '6_LP', '7_QUEDA'];
+const ABA_NOTIFICA = 'BASE DE DADOS - SISTEMA DE NOTIFICAÇÕES';
 const META_INSTITUCIONAL = 80;
 const FUSO_HORARIO = 'America/Fortaleza';
 const ORDEM_MESES = {
@@ -133,9 +134,10 @@ function doGet(e) {
   const params = (e && e.parameter) || {};
 
   if (params.api === '1') {
-    const ss = SpreadsheetApp.openById(ID_PLANILHA);
+    const ssCosep = SpreadsheetApp.openById(ID_PLANILHA_COSEP);
+    const ssNotifica = SpreadsheetApp.openById(ID_PLANILHA_NOTIFICA);
     return ContentService
-      .createTextOutput(JSON.stringify(montarPayload(ss, extrairFiltros(params))))
+      .createTextOutput(JSON.stringify(montarPayload(ssCosep, ssNotifica, extrairFiltros(params))))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -173,21 +175,22 @@ function extrairListaFiltros(rawValue, normalizerFn) {
   return [...new Set(valores)];
 }
 
-function montarPayload(ss, filtros) {
+function montarPayload(ssCosep, ssNotifica, filtros) {
   const filtrosAplicados = filtros || { caminhadas: {}, notificacoes: {} };
   return {
     success: true,
     geradoEm: Utilities.formatDate(new Date(), FUSO_HORARIO, "dd/MM/yyyy 'às' HH:mm"),
-    filtros: getFiltros(ss),
+    filtros: getFiltros(ssCosep, ssNotifica),
     aplicado: filtrosAplicados,
-    caminhadas: processarCaminhadas(ss, filtrosAplicados.caminhadas || {}),
-    notificacoes: processarNotificacoes(ss, filtrosAplicados.notificacoes || {})
+    caminhadas: processarCaminhadas(ssCosep, filtrosAplicados.caminhadas || {}),
+    notificacoes: processarNotificacoes(ssNotifica, filtrosAplicados.notificacoes || {})
   };
 }
 
 function obterPayload(filtros) {
-  const ss = SpreadsheetApp.openById(ID_PLANILHA);
-  return montarPayload(ss, extrairFiltros(filtros || {}));
+  const ssCosep = SpreadsheetApp.openById(ID_PLANILHA_COSEP);
+  const ssNotifica = SpreadsheetApp.openById(ID_PLANILHA_NOTIFICA);
+  return montarPayload(ssCosep, ssNotifica, extrairFiltros(filtros || {}));
 }
 
 function normalizarTexto(valor) {
@@ -281,12 +284,16 @@ function coletarFiltros(dados, config) {
   };
 }
 
-function getFiltros(ss) {
-  const shCaminhadas = ss.getSheetByName(ABA_CAMINHADAS);
-  const shNotifica = ss.getSheetByName(ABA_NOTIFICA);
+function getFiltros(ssCosep, ssNotifica) {
+  const dadosCaminhadas = ABAS_CAMINHADAS
+    .map(nomeAba => {
+      const sh = ssCosep.getSheetByName(nomeAba);
+      return sh ? sh.getDataRange().getValues().slice(1) : [];
+    })
+    .reduce((acc, linhas) => acc.concat(linhas), []);
 
-  const dadosCaminhadas = shCaminhadas.getDataRange().getValues().slice(1);
-  const dadosNotifica = shNotifica.getDataRange().getValues().slice(2);
+  const shNotifica = ssNotifica.getSheetByName(ABA_NOTIFICA);
+  const dadosNotifica = shNotifica.getDataRange().getValues().slice(1);
 
   return {
     caminhadas: coletarFiltros(dadosCaminhadas, {
@@ -295,16 +302,20 @@ function getFiltros(ss) {
       unidadeFn: getUnidade
     }),
     notificacoes: coletarFiltros(dadosNotifica, {
-      anoIdx: 3,
-      mesIdx: 2,
-      unidadeFn: row => String(row[6] || '').trim() || 'Não informado'
+      anoIdx: 0,
+      mesIdx: 0,
+      unidadeFn: row => String(row[4] || '').trim() || 'Não informado'
     })
   };
 }
 
-function processarCaminhadas(ss, filtros) {
-  const sh = ss.getSheetByName(ABA_CAMINHADAS);
-  const linhas = sh.getDataRange().getValues().slice(1);
+function processarCaminhadas(ssCosep, filtros) {
+  const linhas = ABAS_CAMINHADAS
+    .map(nomeAba => {
+      const sh = ssCosep.getSheetByName(nomeAba);
+      return sh ? sh.getDataRange().getValues().slice(1) : [];
+    })
+    .reduce((acc, parte) => acc.concat(parte), []);
 
   const metas = METAS_CAMINHADAS.map(meta => ({
     codigo: meta.codigo,
@@ -573,7 +584,7 @@ function processarCaminhadas(ss, filtros) {
 
 function processarNotificacoes(ss, filtros) {
   const sh = ss.getSheetByName(ABA_NOTIFICA);
-  const linhas = sh.getDataRange().getValues().slice(2);
+  const linhas = sh.getDataRange().getValues().slice(1);
 
   const desempenhoResposta = {
     meta5: criarResumoPrazoResposta(5),
@@ -585,9 +596,9 @@ function processarNotificacoes(ss, filtros) {
   const unidadesFiltro = new Set((filtros.unidades || []).map(item => String(item || '').trim()).filter(Boolean));
 
   const filtradas = linhas.filter(row => {
-    const mes = normalizarMes(row[2]);
-    const ano = normalizarAno(row[3]);
-    const setor = String(row[6] || '').trim();
+    const mes = normalizarMes(row[0]);
+    const ano = normalizarAno(row[0]);
+    const setor = String(row[4] || '').trim();
 
     if (!anosFiltro.size || !mesesFiltro.size || !unidadesFiltro.size) return false;
     if (!anosFiltro.has(ano)) return false;
@@ -608,12 +619,12 @@ function processarNotificacoes(ss, filtros) {
   let pendentes = 0;
 
   filtradas.forEach(row => {
-    const tipo = String(row[8] || '').trim() || 'Não informado';
+    const tipo = String(row[6] || '').trim() || 'Não informado';
     const setor = String(row[6] || '').trim() || 'Não informado';
-    const natureza = String(row[10] || '').trim() || 'Não informado';
-    const status = String(row[13] || '').trim() || 'Não informado';
-    const statusResposta = String(row[15] || '').trim() || 'Não informado';
-    const afetou = normalizarTexto(row[11]);
+    const natureza = String(row[8] || '').trim() || 'Não informado';
+    const status = String(row[10] || '').trim() || 'Não informado';
+    const statusResposta = String(row[12] || '').trim() || 'Não informado';
+    const afetou = normalizarTexto(row[9]);
 
     incrementarMapa(porTipo, tipo);
     incrementarMapa(porSetor, setor);
@@ -621,9 +632,9 @@ function processarNotificacoes(ss, filtros) {
     incrementarMapa(porStatus, status);
     incrementarMapa(porStatusResposta, statusResposta);
 
-    const classificacao = normalizarTexto(row[8]);
-    const dataClassificacao = converterEmData(row[14]);
-    const dataResposta = converterEmData(row[16]);
+    const classificacao = normalizarTexto(row[6]);
+    const dataClassificacao = converterEmData(row[11]);
+    const dataResposta = converterEmData(row[13]);
     const diasResposta = calcularDiferencaDias(dataClassificacao, dataResposta);
     const grupoPrazo = CLASSIFICACOES_META_5_DIAS.includes(classificacao) ? desempenhoResposta.meta5 : desempenhoResposta.meta10;
 
@@ -637,24 +648,21 @@ function processarNotificacoes(ss, filtros) {
   });
 
   const tabela = filtradas.slice(0, 12).map(row => ({
-    numeroNotivisa: row[0],
-    link: row[1],
-    mes: normalizarMes(row[2]),
-    ano: row[3],
-    codigo: row[4],
-    dataOcorrencia: formatarData(row[5]),
-    setorNotificado: row[6],
-    localOcorrencia: row[7],
-    tipoClassificacao: row[8],
-    codInteracao: row[9],
-    natureza: row[10],
-    afetouPaciente: row[11],
-    prontuario: row[12],
-    status: row[13],
-    dataClassificacao: formatarData(row[14]),
-    statusResposta: row[15],
-    dataResposta: formatarData(row[16]),
-    dataConclusao: formatarData(row[17])
+    mes: normalizarMes(row[0]),
+    codigo: row[1],
+    prontuario: row[2],
+    dataOcorrencia: formatarData(row[3]),
+    setorNotificado: row[4],
+    localOcorrencia: row[5],
+    tipoClassificacao: row[6],
+    codInteracao: row[7],
+    natureza: row[8],
+    afetouPaciente: row[9],
+    status: row[10],
+    dataClassificacao: formatarData(row[11]),
+    statusResposta: row[12],
+    dataResposta: formatarData(row[13]),
+    dataConclusao: formatarData(row[14])
   }));
 
   return {
