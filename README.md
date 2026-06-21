@@ -36,12 +36,18 @@ O **HELV_BOLETIM** é um WebApp em **Google Apps Script + Google Sheets + HTML/C
    - Quem pode acessar: **Sua organização**
 4. Copie o URL e compartilhe com a equipe.
 
+
+
+
 ## Guia visual do sistema
 
-> Mockups demonstrativos do sistema, com dados ficticios e sem informacoes reais de pacientes ou da instituicao.
+> Telas demonstrativas baseadas nos componentes, textos, cores e fluxos encontrados no código deste repositório. Os dados exibidos são fictícios e não representam pacientes, profissionais ou instituições reais.
 
-### HELV Boletim - visao geral
-![HELV Boletim - visao geral](./docs/screenshots/overview.svg)
+### HELV - filtros e resumo
+![HELV - filtros e resumo](./docs/screenshots/helv-filtros.svg)
 
-### HELV Boletim - fluxo operacional
-![HELV Boletim - fluxo operacional](./docs/screenshots/workflow.svg)
+### HELV - páginas e indicadores
+![HELV - páginas e indicadores](./docs/screenshots/helv-paginas.svg)
+
+### HELV - notificações
+![HELV - notificações](./docs/screenshots/helv-notificacoes.svg)
