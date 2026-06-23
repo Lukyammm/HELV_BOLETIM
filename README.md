@@ -1,6 +1,6 @@
-# HELV Hospital Bulletin
+# Hospital Quality Bulletin Dashboard
 
-Repository: `HELV_BOLETIM`
+Repository: `hospital-quality-bulletin-dashboard`
 
 ## Overview
 
